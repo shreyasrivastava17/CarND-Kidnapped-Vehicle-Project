@@ -26,32 +26,35 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	//   x, y, theta and their uncertainties from GPS) and all weights to 1. 
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
-	num_particles = 50;
-	default_random_engine gen;
-	weights.resize(num_particles);
-	particles.resize(num_particles);
+	if(!is_initialized){
 
-	double std_x = std[0];
-	double std_y = std[1];
-	double std_theta = std[2];
+		num_particles = 50;
+		default_random_engine gen;
+		weights.resize(num_particles);
+		particles.resize(num_particles);
 
-	//create a nomal distribution for x, y and theta.
-	normal_distribution<double> dist_x(x, std_x);
-	normal_distribution<double> dist_y(y, std_y);
-	normal_distribution<double> dist_theta(theta, std_theta);
+		double std_x = std[0];
+		double std_y = std[1];
+		double std_theta = std[2];
 
-	//Initialising the particles
-	for (int i = 0; i < num_particles; ++i) {
-		Particle particle;
-		particle.id = i;
-		particle.x = dist_x(gen);
-		particle.y = dist_y(gen);
-		particle.theta = dist_theta(gen);
-		particle.weight = 1.0;
-		particles.push_back(particle);
-		weights.push_back(1.0);
+		//create a nomal distribution for x, y and theta.
+		normal_distribution<double> dist_x(x, std_x);
+		normal_distribution<double> dist_y(y, std_y);
+		normal_distribution<double> dist_theta(theta, std_theta);
+
+		//Initialising the particles
+		for (int i = 0; i < num_particles; ++i) {
+			Particle particle;
+			particle.id = i;
+			particle.x = dist_x(gen);
+			particle.y = dist_y(gen);
+			particle.theta = dist_theta(gen);
+			particle.weight = 1.0;
+			particles.push_back(particle);
+			weights.push_back(1.0);
+		}
+		is_initialized = true;
 	}
-	is_initialized = true;
 
 }
 
@@ -70,10 +73,10 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	normal_distribution<double> noise_y(0.0, std_y);
 	normal_distribution<double> noise_theta(0.0, std_theta);
 	for(int i = 0; i<particles.size(); i++){
-		if(yaw_rate>.001){
+		if(fabs(yaw_rate)>.001){
 			double angle = particles[i].theta + (yaw_rate * delta_t);
-			particles[i].x += (velocity*(sin(angle) - sin(particles[i].theta)))/yaw_rate;	
-			particles[i].y += (velocity*(cos(particles[i].theta) - cos(angle)))/yaw_rate;
+			particles[i].x += (velocity/yaw_rate)*(sin(angle) - sin(particles[i].theta));	
+			particles[i].y += (velocity/yaw_rate)*(cos(particles[i].theta) - cos(angle));
 			particles[i].theta = angle;
 		}
 		else{
@@ -128,7 +131,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		//transform the vehicle coordinates to the map coordinates
 		for(int j = 0; j < observations.size(); j++){
 			LandmarkObs landmark;
-			landmark.id = observations[j].id;
+			landmark.id = observations[i].id;
 			landmark.x = particles[i].x + (cos(particles[i].theta)*observations[j].x) - (sin(particles[i].theta)*observations[j].y);
 			landmark.y = particles[i].y + (sin(particles[i].theta)*observations[j].x) + (cos(particles[i].theta)*observations[j].y);
 			transformedObs.push_back(landmark);
@@ -163,10 +166,15 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		
 		//Particle Weights
 		for(int j = 0; j < observations.size(); j++){
-			double exponent_x = pow((transformedObs[j].x - observations[j].x), 2)/(2*std_xland*std_xland);
-			double exponent_y = pow((transformedObs[j].y - observations[j].y), 2)/(2*std_yland*std_yland);
+			double exponent_x = ((transformedObs[j].x - predlandmarkObs[transformedObs[j].id].x)*
+			(transformedObs[j].x - predlandmarkObs[transformedObs[j].id].x))/(2*std_xland*std_xland);
+			double exponent_y = ((transformedObs[j].y - predlandmarkObs[transformedObs[j].id].y)*
+			(transformedObs[j].y - predlandmarkObs[transformedObs[j].id].y))/(2*std_yland*std_yland);
 			double exponent = exponent_x+exponent_y;
-			prob *= exp(-1*(exponent))/(2*M_PI*std_xland*std_yland);
+			double normalization_term = 1/(2*M_PI*std_xland*std_yland);
+			prob *= exp(-(exponent))*normalization_term;
+			transformedObs.clear();
+			predlandmarkObs.clear();
 		}
 		particles[i].weight = prob;
 		weights[i] = prob;
