@@ -128,7 +128,7 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 		}
 		//finding the landmarks in the sensor range for each particle
 		for(int j = 0; j < map_landmarks.landmark_list.size(); j++){
-			double distance = (map_landmarks.landmark_list[j].x_f, map_landmarks.landmark_list[j].y_f, particles[i].x, particles[i].y);
+			double distance = dist(map_landmarks.landmark_list[j].x_f, map_landmarks.landmark_list[j].y_f, particles[i].x, particles[i].y);
 			if(distance < sensor_range){
 				LandmarkObs predLandmark;
 				predLandmark.id = map_landmarks.landmark_list[j].id_i;
